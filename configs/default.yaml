@@ -1,0 +1,76 @@
+# =============================================================================
+# xauusd_bot default configuration (XAUUSD / spot gold)
+#
+# Units are documented inline. This file is the single source of truth for the
+# research pipeline. Live trading is OFF by default (see the execution section).
+# =============================================================================
+
+data:
+  symbol: XAUUSD
+  timeframe: M15                 # candle timeframe label (M1/M5/M15/H1/...)
+  sample_csv: data/sample/XAUUSD_sample.csv
+  csv_path: data/sample/XAUUSD_sample.csv   # input used by the pipeline
+
+features:
+  rsi_window: 14                 # bars
+  macd_fast: 12                  # fast EMA span (bars)
+  macd_slow: 26                  # slow EMA span (bars)
+  macd_signal: 9                 # signal EMA span (bars)
+  atr_window: 14                 # Average True Range window (bars)
+  bb_window: 20                  # Bollinger Band window (bars)
+  bb_std: 2.0                    # Bollinger Band width in std deviations
+  ema_windows: [9, 21, 50, 200]  # trend EMAs (bars)
+  return_windows: [1, 5, 10]     # lookback horizons for momentum returns (bars)
+
+  # ICT / Smart-Money-Concepts settings (consumed by a later feature stage).
+  ict:
+    enabled: true
+    swing_lookback: 5            # bars each side to confirm swing (BOS/CHOCH)
+    fvg_min_gap_atr: 0.25        # min fair-value-gap size, ATR multiples
+    order_block_lookback: 20     # bars scanned for the originating order block
+    liquidity_lookback: 50       # bars for buy/sell-side liquidity pools
+    equal_level_tol_atr: 0.1     # equal-highs/lows tolerance, ATR multiples
+    killzones: [london, newyork_am]   # session killzones flagged for entries
+    # Entry model: iFVG (inverse Fair Value Gap) retests are the PRIMARY entry
+    # trigger. An iFVG forms when price trades fully through an existing FVG,
+    # flipping its polarity. The later signal/labeling stage keys off this.
+    primary_entry: ifvg          # ifvg | fvg | order_block
+    ifvg_enabled: true
+    ifvg_retest_atr_tol: 0.15    # retest proximity to the iFVG, ATR multiples
+
+labeling:
+  horizon: 24                    # vertical (time) barrier: max bars held
+  target_atr_mult: 2.0           # take-profit distance in ATR multiples
+  stop_atr_mult: 1.0             # stop-loss distance in ATR multiples
+  atr_window: 14                 # ATR window used to size the barriers (bars)
+
+model:
+  model_type: lightgbm           # falls back to a pure-stdlib GBT if unavailable
+  n_estimators: 300
+  learning_rate: 0.05
+  max_depth: 6
+  num_leaves: 31
+  min_child_samples: 20
+  subsample: 0.8
+  colsample_bytree: 0.8
+  random_state: 42
+
+backtest:
+  spread_pips: 25.0              # XAUUSD spread in cents (~$0.25 per side)
+  commission_per_lot: 7.0        # round-turn commission per 1.0 lot (USD)
+  initial_capital: 10000.0       # starting equity (USD)
+  train_size: 2000               # walk-forward train window (bars)
+  test_size: 500                 # walk-forward test window (bars)
+  embargo: 24                    # purge/embargo bars between train and test
+
+risk:
+  risk_per_trade: 0.01           # fraction of equity risked per trade (1%)
+  max_drawdown_pct: 0.20         # halt trading beyond 20% drawdown
+  atr_stop_mult: 1.0             # stop distance in ATR multiples
+  max_position_lots: 1.0         # hard cap on position size (lots)
+
+execution:
+  live_trading_enabled: false    # OFF BY DEFAULT - do not change without intent
+  mode: paper                    # paper | live
+  broker: mt5
+  magic_number: 20240101

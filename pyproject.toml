@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xauusd_bot"
+version = "0.1.0"
+description = "Research-first machine-learning trading bot for XAUUSD (spot gold) with ICT concepts and a disabled-by-default execution layer."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+# Runtime deps are OPTIONAL: the package runs on the stdlib alone. The full
+# production stack is pinned in requirements.txt and declared here as extras.
+dependencies = []
+
+[project.optional-dependencies]
+full = [
+    "pandas>=1.3,<3.0",
+    "numpy>=1.21,<3.0",
+    "scikit-learn>=1.0,<2.0",
+    "lightgbm>=3.3,<5.0",
+    "matplotlib>=3.4,<4.0",
+    "PyYAML>=5.4,<7.0",
+]
+mt5 = ["MetaTrader5>=5.0; platform_system == 'Windows'"]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]

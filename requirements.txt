@@ -1,0 +1,32 @@
+# ---------------------------------------------------------------------------
+# Production dependency stack for xauusd_bot (the FULL-FEATURED run).
+#
+# These packages power the high-performance path: vectorized indicators,
+# gradient-boosted models, plotting, YAML config, and live/historical data
+# from MetaTrader 5.
+#
+# IMPORTANT: the project is deliberately written to ALSO run with the Python
+# standard library ONLY. Every one of these imports is optional and guarded by
+# try/except with a pure-stdlib fallback, so you can clone and run the sample
+# pipeline without installing anything. Install the stack below only when you
+# want the fast path and the ML models on your own machine:
+#
+#     python -m venv .venv
+#     source .venv/bin/activate        # Windows: .venv\Scripts\activate
+#     pip install -r requirements.txt
+# ---------------------------------------------------------------------------
+
+pandas>=1.3,<3.0
+numpy>=1.21,<3.0
+scikit-learn>=1.0,<2.0
+lightgbm>=3.3,<5.0
+matplotlib>=3.4,<4.0
+PyYAML>=5.4,<7.0
+
+# MetaTrader5 is Windows-only and optional. It is used solely by
+# xauusd_bot.data.mt5_connector to pull live/historical candles from your
+# broker. On non-Windows systems or if you only use CSV data, skip it.
+MetaTrader5>=5.0 ; platform_system == "Windows"
+
+# Optional developer tooling (not required to run):
+# pytest>=7.0
