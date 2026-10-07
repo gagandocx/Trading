@@ -249,22 +249,83 @@ timestamp (ISO-8601 str), open, high, low, close, volume (floats)
 
 ---
 
-## Plugging in MetaTrader 5 (optional, Windows-oriented)
+## Fetch real data from MetaTrader 5 (one click)
 
-MetaTrader 5 (MT5) is how you connect a real broker feed. The connector is inert
-until you install the package and run on Windows with an MT5 terminal.
+**On Windows, double-click `fetch.bat`** in the project root to pull real
+XAUUSD candles straight from your running MetaTrader 5 terminal and save them to
+a CSV you can backtest. No dates to type - it grabs the **last 1 year**.
 
-1. Install the **MetaTrader 5 terminal** from your broker and log into an account
-   (a demo account is perfect for testing).
-2. `pip install MetaTrader5` (Windows only; it is in `requirements.txt`).
-3. In the terminal, enable **"Allow automated trading" / API access**.
-4. Fetch candles to a CSV, then run the pipeline on it:
+Before the first run:
+
+1. Open the **MetaTrader 5 terminal** and **log in** to your broker account
+   (e.g. **Fusion Markets**).
+2. Enable **automated / algo trading** (Tools > Options > Expert Advisors, and
+   the **"Algo Trading"** toolbar button must be green).
+3. Install the Python bridge once (Windows only; it is in `requirements.txt`):
+
+   ```bat
+   pip install MetaTrader5
+   ```
+
+Then just:
+
+```bat
+fetch.bat            REM XAUUSD, M5 (5-minute), last 1 year -> data\mt5_XAUUSD_M5.csv
+fetch.bat M1         REM 1-minute instead               -> data\mt5_XAUUSD_M1.csv
+fetch.bat M15        REM 15-minute                       -> data\mt5_XAUUSD_M15.csv
+```
+
+The first argument overrides the timeframe (default **M5**), and the output file
+name stays in sync with it. On success the script prints the CSV path and the
+exact next command to backtest the bot on your **real** data:
+
+```bat
+start.bat --data data\mt5_XAUUSD_M5.csv
+```
+
+If it fails, the script explains the usual causes: the symbol name must match
+your MT5 Market Watch **exactly** (yours is plain `XAUUSD`; some brokers add a
+suffix like `XAUUSD.m`), the terminal must be open and logged in, algo trading
+must be allowed, and the requested history must be downloaded (open an XAUUSD
+chart on that timeframe and scroll back to force a download, then retry).
+
+**Two caveats to know about the data:**
+
+- **Broker-server time.** MT5 timestamps are in your broker's **server
+  timezone** (Fusion Markets' server is typically UTC+2/UTC+3 with DST), not
+  necessarily UTC. The connector keeps the timestamps as-is (it does not shift
+  them). This is fine for a first real run, but note that killzone / session-of-
+  day features are then defined relative to the broker clock.
+- **Volume is tick volume.** Spot gold has no exchange-traded volume, so MT5
+  reports **tick volume** (the number of price updates per bar). That is what
+  lands in the CSV `volume` column.
+
+### Driving the fetch from the CLI directly
+
+`fetch.bat` just calls the `fetch-mt5` CLI subcommand. You can run it yourself:
 
 ```bash
+# Last N days up to now (what fetch.bat uses):
+python -m xauusd_bot.cli fetch-mt5 --symbol XAUUSD --timeframe M5 --days 365 \
+    --out data/mt5_XAUUSD_M5.csv
+
+# Or an explicit date range:
 python -m xauusd_bot.cli fetch-mt5 --symbol XAUUSD --timeframe M15 \
     --start 2023-01-01 --end 2024-01-01 --out data/mt5_XAUUSD.csv
-python -m xauusd_bot.cli run --data data/mt5_XAUUSD.csv
+
+python -m xauusd_bot.cli run --data data/mt5_XAUUSD_M5.csv
 ```
+
+**Precedence:** `--start` / `--end` always win. `--days N` only fills a bound you
+did not give explicitly (so `--days 365` with no `--start`/`--end` means "the
+last 365 days up to now"). When `--days` is absent, behavior is unchanged.
+
+The connector validates the symbol with `symbol_info` (and raises a clear error
+naming the exact-match / suffix issue if it is missing), ensures the symbol is
+selected in Market Watch with `symbol_select`, and - because a full year of M5
+(~75k bars) or M1 (~370k bars) is often not yet cached in the terminal - falls
+back from `copy_rates_range` to a count-based `copy_rates_from` /
+`copy_rates_from_pos` pull, then filters back to the requested window.
 
 See `src/xauusd_bot/data/mt5_connector.py` for details. Importing the package
 never requires MetaTrader5 - it is imported lazily, only when you call the

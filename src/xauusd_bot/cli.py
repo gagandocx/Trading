@@ -232,16 +232,48 @@ def cmd_make_sample(args) -> int:
     return 0
 
 
+def _resolve_fetch_window(start, end, days):
+    """Resolve the (start, end) fetch window from CLI arguments.
+
+    Precedence rule: explicit ``--start`` / ``--end`` ALWAYS win. ``--days N`` is
+    only used to fill a bound that was not given explicitly:
+
+    * ``--start`` given           -> start is used verbatim (``--days`` ignored
+      for the start bound).
+    * ``--start`` absent, ``--days`` given -> start = (end or now) - N days.
+    * neither given               -> start stays ``None`` (connector default).
+
+    ``end`` defaults to now (UTC) when ``--days`` is supplied but ``--end`` is
+    not, so "last N days up to now" is well defined. This is pure Python and is
+    unit-tested WITHOUT importing MetaTrader5.
+
+    Returns a ``(start, end)`` tuple of ISO strings / ``None`` suitable for
+    passing straight to :func:`fetch_candles`.
+    """
+    from datetime import datetime, timedelta
+
+    resolved_end = end
+    resolved_start = start
+    if days is not None:
+        anchor = datetime.fromisoformat(end) if end else datetime.utcnow()
+        if resolved_end is None:
+            resolved_end = anchor.isoformat()
+        if resolved_start is None:
+            resolved_start = (anchor - timedelta(days=int(days))).isoformat()
+    return resolved_start, resolved_end
+
+
 def cmd_fetch_mt5(args) -> int:  # pragma: no cover - requires MetaTrader5 + terminal
     import csv
 
     from .data.mt5_connector import fetch_candles
 
+    start, end = _resolve_fetch_window(args.start, args.end, args.days)
     candles = fetch_candles(
         symbol=args.symbol,
         timeframe=args.timeframe,
-        start=args.start,
-        end=args.end,
+        start=start,
+        end=end,
     )
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     with open(args.out, "w", newline="", encoding="utf-8") as fh:
@@ -284,8 +316,14 @@ def build_parser() -> argparse.ArgumentParser:
     pm = sub.add_parser("fetch-mt5", help="OPTIONAL: fetch candles from MetaTrader 5")
     pm.add_argument("--symbol", default="XAUUSD")
     pm.add_argument("--timeframe", default="M15")
-    pm.add_argument("--start", default=None)
-    pm.add_argument("--end", default=None)
+    pm.add_argument("--start", default=None, help="ISO start datetime (wins over --days)")
+    pm.add_argument("--end", default=None, help="ISO end datetime (defaults to now)")
+    pm.add_argument(
+        "--days",
+        type=int,
+        default=None,
+        help="fetch the last N days up to now; --start/--end take precedence if given",
+    )
     pm.add_argument("--out", default="data/mt5_candles.csv")
     pm.set_defaults(func=cmd_fetch_mt5)
 

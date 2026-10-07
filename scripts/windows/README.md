@@ -20,6 +20,24 @@ run only, finds Python (`python`, falling back to the `py` launcher), runs
 window open. To use your own data from a prompt, pass flags through, e.g.
 `start.bat --data path\to\your.csv`; with no arguments it defaults to `--sample`.
 
+## Fetch real data from MetaTrader 5 (`fetch.bat`)
+
+To backtest on **real** XAUUSD data instead of the synthetic sample, use the
+one-click **`fetch.bat` in the project root** (`F:\Automation\Trading\fetch.bat`).
+First open and log into the **MetaTrader 5** terminal (e.g. Fusion Markets),
+enable automated/algo trading, and run `pip install MetaTrader5` once. Then:
+
+```bat
+fetch.bat            REM XAUUSD, M5, last 1 year -> data\mt5_XAUUSD_M5.csv
+fetch.bat M1         REM 1-minute                -> data\mt5_XAUUSD_M1.csv
+start.bat --data data\mt5_XAUUSD_M5.csv   REM backtest on the real data
+```
+
+The first argument overrides the timeframe (default M5); the output file name
+follows it. Timestamps are in broker-server time and spot-gold `volume` is tick
+volume. See the main `README.md` section "Fetch real data from MetaTrader 5" for
+the full guide and troubleshooting.
+
 By default both download scripts target:
 
 ```
