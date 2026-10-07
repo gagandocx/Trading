@@ -7,10 +7,13 @@
   * the iFVG / structure signal context (:mod:`signals`),
   * lagged windows of selected features,
 
-into a feature table. When pandas is available a ``DataFrame`` is returned;
-otherwise a ``list[dict]`` of rows (aligned by index) is returned - the two are
-information-equivalent. The deterministic, ordered feature-name list is attached
-as ``.feature_names`` (and returned by :func:`feature_names`).
+into a feature table. :func:`build_feature_matrix` returns a
+``(matrix, feature_names)`` tuple. When pandas is available ``matrix`` is a
+``DataFrame``; otherwise it is a :class:`FeatureMatrix` (a ``list[dict]`` of
+rows aligned by index) - the two are information-equivalent. The ordered
+feature-name list is returned EXPLICITLY (never stashed on the matrix) because
+pandas silently drops attributes assigned to a ``DataFrame`` via attribute
+access. Use :func:`get_row` to read row ``i`` positionally regardless of backend.
 
 Causality: every column is causal (see each source module). Warm-up rows that
 contain any ``None`` are flagged via the ``warmup`` column so the training loop
@@ -32,13 +35,27 @@ Candle = Dict[str, object]
 
 
 class FeatureMatrix(list):
-    """A ``list[dict]`` of feature rows carrying its ordered feature-name list.
+    """A ``list[dict]`` of feature rows (the pure-stdlib feature matrix).
 
-    Behaves like a plain list (so ``len(X)`` is the row count) but also exposes
-    ``.feature_names`` for the deterministic ordered column list.
+    Behaves like a plain list, so ``len(X)`` is the row count and ``X[i]`` is
+    row ``i``. The ordered feature-name list is NOT stored here; it is returned
+    separately by :func:`build_feature_matrix` so the pandas and stdlib backends
+    behave identically (pandas discards attributes assigned to a DataFrame).
     """
 
-    feature_names: List[str] = []
+
+def get_row(matrix, i: int) -> Dict[str, object]:
+    """Return feature row ``i`` as a ``dict``, regardless of the backend.
+
+    ``matrix`` may be a pandas ``DataFrame`` (positional row access must go
+    through ``.iloc`` because ``df[i]`` selects the COLUMN labelled ``i``) or a
+    :class:`FeatureMatrix` / ``list[dict]`` (where ``matrix[i]`` is row ``i``).
+    This single accessor keeps every positional row lookup backend-correct.
+    """
+    iloc = getattr(matrix, "iloc", None)
+    if iloc is not None:  # pandas DataFrame
+        return iloc[i].to_dict()
+    return matrix[i]
 
 
 def _lagged(series: List[Optional[float]], lag: int) -> List[Optional[float]]:
@@ -63,9 +80,10 @@ def _b2f(v: Optional[bool]) -> Optional[float]:
 def build_feature_matrix(candles: Sequence[Candle], config, signals=None):
     """Build the feature matrix for ``candles`` under ``config``.
 
-    Returns a :class:`FeatureMatrix` (list of dict rows) with ``.feature_names``.
-    If pandas is installed the same data is returned as a ``DataFrame`` with an
-    attached ``feature_names`` attribute.
+    Returns a ``(matrix, feature_names)`` tuple. ``matrix`` is a pandas
+    ``DataFrame`` when pandas is installed, else a :class:`FeatureMatrix` (list
+    of dict rows); ``feature_names`` is the deterministic ordered column list.
+    Use :func:`get_row` for positional row access across both backends.
 
     ``signals`` may be a pre-computed list from
     :func:`xauusd_bot.features.signals.generate_signals` (same length as
@@ -219,15 +237,15 @@ def build_feature_matrix(candles: Sequence[Candle], config, signals=None):
         try:
             import pandas as pd  # type: ignore
 
+            # NOTE: do NOT stash feature_order on the DataFrame via attribute
+            # assignment - pandas silently drops it (UserWarning). Return it
+            # explicitly instead so both backends behave identically.
             df = pd.DataFrame(out_rows)
-            df.feature_names = feature_order  # type: ignore[attr-defined]
-            return df
+            return df, feature_order
         except Exception:
             pass
 
-    fm = FeatureMatrix(out_rows)
-    fm.feature_names = feature_order
-    return fm
+    return FeatureMatrix(out_rows), feature_order
 
 
 def feature_names(config) -> List[str]:
@@ -239,8 +257,8 @@ def feature_names(config) -> List[str]:
     from ..data.sample_data import generate_sample
 
     sample = generate_sample(5, seed=0)
-    fm = build_feature_matrix(sample, config)
-    return list(getattr(fm, "feature_names", []))
+    _, names = build_feature_matrix(sample, config)
+    return list(names)
 
 
 # ---------------------------------------------------------------------------

@@ -71,8 +71,8 @@ def _build_training_table(candles, cfg):
     # matrix's signal-context columns and the backtest, avoiding a redundant
     # second pass over generate_signals.
     signals = generate_signals(candles, cfg)
-    fm = build_feature_matrix(candles, cfg, signals=signals)
-    feature_names = list(getattr(fm, "feature_names", []))
+    fm, feature_names = build_feature_matrix(candles, cfg, signals=signals)
+    feature_names = list(feature_names)
     directions = [s["direction"] for s in signals]
 
     atr_series = atr(candles, window=cfg.labeling.atr_window)
@@ -88,11 +88,20 @@ def _build_training_table(candles, cfg):
 
 
 def _row_vector(fm_row, feature_names) -> List[float]:
-    """Extract a feature vector in ``feature_names`` order (None -> 0.0)."""
+    """Extract a feature vector in ``feature_names`` order (missing -> 0.0).
+
+    Treats both ``None`` (stdlib backend) and ``NaN`` (pandas converts ``None``
+    in a float column to ``NaN``) as missing, so warm-up / absent values map to
+    ``0.0`` identically on both backends.
+    """
     out = []
     for name in feature_names:
         v = fm_row.get(name) if isinstance(fm_row, dict) else None
-        out.append(0.0 if v is None else float(v))
+        if v is None:
+            out.append(0.0)
+            continue
+        fv = float(v)
+        out.append(0.0 if fv != fv else fv)  # fv != fv is True only for NaN
     return out
 
 
@@ -106,6 +115,7 @@ def run_pipeline(cfg: Config, data_path: Optional[str], use_sample: bool, out_di
     from .backtest.engine import run_backtest
     from .backtest.metrics import compute_metrics, report, save_equity_curve
     from .backtest.walk_forward import walk_forward_splits
+    from .features.engineering import get_row
     from .models.model import Classifier
 
     candles = _load_candles(cfg, data_path, use_sample)
@@ -148,7 +158,7 @@ def run_pipeline(cfg: Config, data_path: Optional[str], use_sample: bool, out_di
             lbl = labels[i]
             if lbl is None:
                 continue
-            row = fm[i]
+            row = get_row(fm, i)
             if isinstance(row, dict) and row.get("warmup"):
                 continue
             X_train.append(_row_vector(row, feature_names))
@@ -162,7 +172,7 @@ def run_pipeline(cfg: Config, data_path: Optional[str], use_sample: bool, out_di
 
         model = Classifier.from_config(cfg)
         model.fit(X_train, y_train)
-        X_test = [_row_vector(fm[i], feature_names) for i in test_idx]
+        X_test = [_row_vector(get_row(fm, i), feature_names) for i in test_idx]
         probs = model.prob_for(X_test, 1)  # P(target hit)
         for j, i in enumerate(test_idx):
             probabilities[i] = probs[j]
