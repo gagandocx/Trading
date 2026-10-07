@@ -4,10 +4,11 @@ These batch files let you download and keep the Trading project up to date on a
 Windows PC with a double-click. Under the hood they use **git** to clone and
 pull from the GitHub repo, so your local copy always matches what we work on.
 
-| Script       | What it does                                                                 |
-|--------------|------------------------------------------------------------------------------|
-| `setup.bat`  | First-time setup. Clones the repo into the target folder (or updates it if it is already there). Safe to re-run. |
-| `sync.bat`   | Downloads the latest changes (fetch + fast-forward pull). Run it any time, or schedule it for true automation. |
+| Script        | What it does                                                                 |
+|---------------|------------------------------------------------------------------------------|
+| `setup.bat`   | First-time setup. Clones the repo into the target folder (or updates it if it is already there). Safe to re-run. Also works if you drop it into an already-created, non-empty `F:\Automation\Trading` folder: it initialises the repo in-place instead of refusing. |
+| `sync.bat`    | Downloads the latest changes with a safe fast-forward pull. Stops if the branch diverged or you have local edits. Run it any time, or schedule it. |
+| `update.bat`  | "Always give me the latest files" button. Force-syncs the folder to exactly match the repo (`fetch` + `reset --hard` + `clean`), so you always end up current even if something drifted locally. Self-heals a non-git folder. |
 
 By default both scripts target:
 
@@ -34,6 +35,22 @@ Repo   : https://github.com/gagandocx/Trading.git
 double-click `setup.bat` the first time, then `sync.bat` whenever you want the
 latest files. The window stays open at the end (`pause`) so you can read the
 result.
+
+`setup.bat` is robust even if you have already created
+`F:\Automation\Trading` and placed files in it (for example `setup.bat`
+itself). When the folder exists, is not empty, and is not yet a git repository,
+`setup.bat` clones into a temporary folder, moves the git metadata into your
+folder, and checks out the branch in-place. Your existing files are kept;
+tracked repo files (like the scripts) are refreshed to the repo's version, and
+any files you added that are not part of the repo are left untouched. You do not
+have to clear or delete the folder first.
+
+**Prefer a single "always latest" button?** Drop `update.bat` into
+`F:\Automation\Trading` and double-click it any time. It force-syncs the folder
+to exactly match the repo and self-heals a folder that is not a git repo yet.
+Because it discards local edits to tracked files (and removes untracked files
+via `git clean`), use `sync.bat` instead if you keep local-only files in that
+folder.
 
 **From a command prompt:**
 
