@@ -7,7 +7,7 @@
 
 data:
   symbol: XAUUSD
-  timeframe: M15                 # candle timeframe label (M1/M5/M15/H1/...)
+  timeframe: M5                  # candle timeframe label (M1/M5/M15/H1/...); user trades M5 (may also use M1)
   sample_csv: data/sample/XAUUSD_sample.csv
   csv_path: data/sample/XAUUSD_sample.csv   # input used by the pipeline
 
@@ -56,8 +56,17 @@ model:
   random_state: 42
 
 backtest:
-  spread_pips: 25.0              # XAUUSD spread in cents (~$0.25 per side)
-  commission_per_lot: 7.0        # round-turn commission per 1.0 lot (USD)
+  # Real Fusion Markets XAUUSD trading costs (edit these for YOUR account).
+  # spread_pips is the FULL round-trip spread in CENTS: the engine converts it
+  # to price dollars via spread_pips/100 and charges one full spread per round
+  # trip (half on entry, half on exit). Observed Fusion Bid/Ask ~0.17 dollars;
+  # 0.20 dollars = 20 cents is used as a slightly conservative M5 average.
+  spread_pips: 20.0              # ~$0.20 round-trip XAUUSD spread (20 cents; Fusion floating ~0.17)
+  # Fusion charges 3 CAD per lot PER SIDE ("in/out deals"), so a round-turn on
+  # 1.0 lot is 3 + 3 = 6. Value is in your ACCOUNT currency (CAD here); no FX
+  # conversion is applied, so it is treated as account-currency units alongside
+  # initial_capital.
+  commission_per_lot: 6.0        # round-turn commission per 1.0 lot (6 CAD = 3 per side, Fusion Markets)
   initial_capital: 10000.0       # starting equity (USD)
   train_size: 2000               # walk-forward train window (bars)
   test_size: 500                 # walk-forward test window (bars)

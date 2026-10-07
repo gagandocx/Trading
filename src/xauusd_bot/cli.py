@@ -250,12 +250,20 @@ def _resolve_fetch_window(start, end, days):
     Returns a ``(start, end)`` tuple of ISO strings / ``None`` suitable for
     passing straight to :func:`fetch_candles`.
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
+    # datetime.utcnow() is deprecated from Python 3.12. We want the SAME naive
+    # UTC value it produced, so take the tz-aware "now" in UTC and drop the
+    # tzinfo. This is identical to utcnow() in value and output format (naive
+    # ISO string) and keeps tests/test_cli_fetch.py's date math green.
     resolved_end = end
     resolved_start = start
     if days is not None:
-        anchor = datetime.fromisoformat(end) if end else datetime.utcnow()
+        anchor = (
+            datetime.fromisoformat(end)
+            if end
+            else datetime.now(timezone.utc).replace(tzinfo=None)
+        )
         if resolved_end is None:
             resolved_end = anchor.isoformat()
         if resolved_start is None:

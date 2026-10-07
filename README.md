@@ -51,7 +51,7 @@ institutions ("smart money") push price around to fill their orders. You don't
 need to be an expert - here is what the terms mean and how our entry forms.
 
 - **Candle / OHLCV** - one time slice of price: open, high, low, close, and
-  volume. We work on M15 (15-minute) candles by default.
+  volume. We work on M5 (5-minute) candles by default (set `data.timeframe`).
 - **Swing high / swing low** - a local peak / trough in price. A swing is only
   *confirmed* once enough later candles have formed to prove it was a turning
   point (we wait `swing_lookback` bars; this delay is enforced so we never "see
@@ -353,7 +353,15 @@ Naive backtests lie. We defend against the common ways in several places:
 - **Realistic costs.** The backtest charges the configured **spread** (half on
   entry, half on exit) plus **commission per lot** on every round trip. A
   zero-move round trip therefore loses money - exactly the modeled cost - which is
-  unit-tested. This keeps marginal, over-traded strategies honest.
+  unit-tested. This keeps marginal, over-traded strategies honest. The defaults
+  in `configs/default.yaml` reflect **real Fusion Markets XAUUSD** costs:
+  `spread_pips: 20.0` is the full round-trip spread in **cents** (the engine does
+  `spread_pips / 100` to get $0.20, close to the observed ~0.17 floating spread),
+  and `commission_per_lot: 6.0` is the **round-turn** commission on 1.0 lot
+  (Fusion charges 3 CAD per lot per side, so 3 + 3 = 6 in your account currency,
+  CAD). Edit `spread_pips` / `commission_per_lot` to match **your** broker and
+  account. The contract size is 100 oz per lot (standard gold), fixed in
+  `risk/risk.py` as `CONTRACT_SIZE`.
 - **Honest metrics (mark-to-market).** The equity curve is marked **every bar**
   at realized cash plus the open position's unrealized PnL (net of the exit costs
   it will pay), so drawdown (magnitude and duration), the annualized Sharpe, and

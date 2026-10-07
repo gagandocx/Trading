@@ -25,7 +25,7 @@ All returned data follows the canonical schema (see :mod:`xauusd_bot.data`).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from . import CANONICAL_FIELDS
@@ -175,7 +175,14 @@ def fetch_candles(
     try:
         tf = _resolve_timeframe(mt5, timeframe)
         start_dt = _coerce_dt(start) if start is not None else datetime(1970, 1, 1)
-        end_dt = _coerce_dt(end) if end is not None else datetime.utcnow()
+        # datetime.utcnow() is deprecated from 3.12; produce the SAME naive UTC
+        # value by taking tz-aware now(UTC) and dropping tzinfo. The downstream
+        # calendar.timegm filtering treats this as naive UTC exactly as before.
+        end_dt = (
+            _coerce_dt(end)
+            if end is not None
+            else datetime.now(timezone.utc).replace(tzinfo=None)
+        )
 
         # --- validate / enable the symbol -----------------------------------
         # Fusion Markets (and many brokers) only serve history for a symbol that
