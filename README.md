@@ -231,6 +231,17 @@ schema is:
 timestamp (ISO-8601 str), open, high, low, close, volume (floats)
 ```
 
+### Configuration notes
+
+- **`features.atr_window` must equal `labeling.atr_window`.** The backtest sizes
+  the stops/targets it actually trades from `features.atr_window`, while the
+  triple-barrier **labels the model learns from** are sized from
+  `labeling.atr_window`. If the two drift apart the model would be trained on a
+  different barrier geometry than the one executed, silently degrading the
+  filter. To make that impossible the config loader **refuses to load** when the
+  two keys disagree, naming both so the fix is obvious. Both default to `14`;
+  change them together.
+
 ---
 
 ## Plugging in MetaTrader 5 (optional, Windows-oriented)
@@ -277,8 +288,13 @@ Naive backtests lie. We defend against the common ways in several places:
   entry, half on exit) plus **commission per lot** on every round trip. A
   zero-move round trip therefore loses money - exactly the modeled cost - which is
   unit-tested. This keeps marginal, over-traded strategies honest.
-- **Honest metrics.** Drawdown (magnitude and duration) is always reported, and
-  the risk module can halt new entries once drawdown breaches `max_drawdown_pct`.
+- **Honest metrics (mark-to-market).** The equity curve is marked **every bar**
+  at realized cash plus the open position's unrealized PnL (net of the exit costs
+  it will pay), so drawdown (magnitude and duration), the annualized Sharpe, and
+  the `max_drawdown_pct` halt guardrail all reflect **intra-trade** risk - a trade
+  sitting deep underwater dips the curve immediately instead of hiding a flat line
+  until it exits. The risk module halts new entries once that mark-to-market
+  drawdown breaches `max_drawdown_pct`.
 
 ---
 

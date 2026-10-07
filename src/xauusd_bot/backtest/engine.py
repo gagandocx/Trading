@@ -25,8 +25,20 @@ lot. A ZERO-move round trip therefore returns a NEGATIVE PnL equal to the modele
 costs - this is unit-tested and must never be positive.
 
 No lookahead: a bar's entry decision uses that bar's close and features only; exit
-checks use the bar's own high/low AFTER the position already existed. Equity is
-marked at realised PnL (positions are evaluated bar-by-bar for exits).
+checks use the bar's own high/low AFTER the position already existed.
+
+Mark-to-market equity
+---------------------
+Each bar the equity curve is marked at ``realized_equity + unrealized_pnl`` where
+``unrealized_pnl`` is the open position's PnL at this bar's CLOSE, net of the
+round-trip costs that will be charged when it exits (``apply_costs`` with a zero
+gross). This means ``max_drawdown``, the annualized Sharpe, and the
+``DrawdownGuard`` all see intra-trade risk - a position sitting deep underwater
+dips the curve immediately instead of showing a flat line until it closes. The
+realized cash accounting on close is unchanged (``net_pnl`` already includes
+costs), so costs are modeled exactly once: the mid-trade mark is a transient
+display/guard value, and when the trade actually closes ``realized_equity`` moves
+to the same net figure.
 """
 
 from __future__ import annotations
@@ -207,12 +219,19 @@ def run_backtest(
         if open_pos is not None:
             result.bars_in_market += 1
 
-        # Mark equity and update the drawdown guard once per bar.
-        result.equity_curve.append(equity)
+        # Mark equity (realized + open-position mark-to-market) and update the
+        # drawdown guard once per bar. The unrealized PnL is netted of the
+        # round-trip costs the position will pay on exit so the curve, Sharpe,
+        # drawdown, and the halt guardrail reflect intra-trade risk honestly and
+        # transition smoothly into the realized figure when the trade closes.
+        marked_equity = equity + _unrealized_pnl(
+            open_pos, closes[i], spread, commission
+        )
+        result.equity_curve.append(marked_equity)
         result.equity_times.append(
             rows[i].get("timestamp") if isinstance(rows[i], dict) else i
         )
-        guard.update(equity)
+        guard.update(marked_equity)
 
         # --- 2) Consider a new entry (only on tradable test bars, when flat) --
         if open_pos is not None or i not in tradable:
@@ -276,6 +295,29 @@ def _spread_price(bcfg) -> float:
     convert cents -> dollars so costs are in the same units as price moves.
     """
     return float(bcfg.spread_pips) / 100.0
+
+
+def _unrealized_pnl(pos, close, spread, commission) -> float:
+    """Mark-to-market PnL of an open position at ``close``, net of exit costs.
+
+    Returns ``0.0`` when flat or when the current close is unknown. The gross
+    move is valued at this bar's close in the signalled direction, then run
+    through :func:`apply_costs` (with a zero gross so only the modeled round-trip
+    costs are subtracted). This mirrors exactly what ``_close_trade`` would book
+    if the position exited here at the close, so marking it onto the equity curve
+    does not double-count costs: on the real close the realized equity moves to
+    this same net figure.
+    """
+    if pos is None or close is None:
+        return 0.0
+    entry_price = pos["entry_price"]
+    lots = pos["lots"]
+    if pos["direction"] == "long":
+        move = close - entry_price
+    else:
+        move = entry_price - close
+    gross = move * CONTRACT_SIZE * lots
+    return apply_costs(gross, spread=spread, commission=commission, lots=lots)
 
 
 def _open_position(index, direction, entry_price, stop_dist, target_dist, lots, sig):

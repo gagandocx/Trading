@@ -67,9 +67,12 @@ def _build_training_table(candles, cfg):
     from .features.signals import generate_signals
     from .labeling.triple_barrier import triple_barrier_labels
 
-    fm = build_feature_matrix(candles, cfg)
-    feature_names = list(getattr(fm, "feature_names", []))
+    # Compute the ICT/iFVG signals ONCE and reuse them for both the feature
+    # matrix's signal-context columns and the backtest, avoiding a redundant
+    # second pass over generate_signals.
     signals = generate_signals(candles, cfg)
+    fm = build_feature_matrix(candles, cfg, signals=signals)
+    feature_names = list(getattr(fm, "feature_names", []))
     directions = [s["direction"] for s in signals]
 
     atr_series = atr(candles, window=cfg.labeling.atr_window)

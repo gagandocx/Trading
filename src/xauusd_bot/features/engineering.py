@@ -60,12 +60,19 @@ def _b2f(v: Optional[bool]) -> Optional[float]:
     return 1.0 if v else 0.0
 
 
-def build_feature_matrix(candles: Sequence[Candle], config):
+def build_feature_matrix(candles: Sequence[Candle], config, signals=None):
     """Build the feature matrix for ``candles`` under ``config``.
 
     Returns a :class:`FeatureMatrix` (list of dict rows) with ``.feature_names``.
     If pandas is installed the same data is returned as a ``DataFrame`` with an
     attached ``feature_names`` attribute.
+
+    ``signals`` may be a pre-computed list from
+    :func:`xauusd_bot.features.signals.generate_signals` (same length as
+    ``candles``). When supplied it is reused for the signal-context columns
+    instead of recomputing it, so a caller that also needs the signals for the
+    backtest (e.g. the CLI) computes them exactly once. When ``None`` the matrix
+    computes them itself.
     """
     rows = list(candles)
     n = len(rows)
@@ -160,7 +167,12 @@ def build_feature_matrix(candles: Sequence[Candle], config):
     columns["dist_to_ifvg"] = _dist_to_nearest_zone(rows, ifvgs, atr_series)
 
     # --- Signal context (iFVG-primary entries) -------------------------------
-    sigs = generate_signals(rows, config)
+    # Reuse caller-supplied signals when present (and aligned) to avoid the
+    # redundant recomputation flagged in review; otherwise compute them here.
+    if signals is not None and len(signals) == n:
+        sigs = signals
+    else:
+        sigs = generate_signals(rows, config)
     columns["is_in_ifvg_retest"] = [
         1.0 if (s["entry_type"] == "ifvg" and s["direction"] != "none") else 0.0
         for s in sigs
