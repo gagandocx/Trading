@@ -112,6 +112,7 @@ class BacktestConfig:
     train_size: int = 2000  # candles per walk-forward train window
     test_size: int = 500  # candles per walk-forward test window
     embargo: int = 24  # purge/embargo candles between train and test
+    prob_threshold: float = 0.5  # min model probability to take a signalled trade
 
 
 @dataclass

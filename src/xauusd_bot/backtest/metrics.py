@@ -131,7 +131,13 @@ def compute_metrics(
         if t0 and t1 and t1 > t0:
             years = (t1 - t0).total_seconds() / (365.25 * 24 * 3600)
             if years > 0 and final > 0:
-                cagr = (final / initial) ** (1.0 / years) - 1.0
+                # Guard against overflow on very short spans (tiny ``years`` makes
+                # the exponent huge). CAGR is meaningless over sub-day windows, so
+                # clamp gracefully instead of raising.
+                try:
+                    cagr = (final / initial) ** (1.0 / years) - 1.0
+                except OverflowError:
+                    cagr = float("inf") if final > initial else -1.0
 
     total_bars = int(getattr(result, "total_bars", len(equity)) or 0)
     bars_in_market = int(getattr(result, "bars_in_market", 0) or 0)
