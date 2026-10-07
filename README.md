@@ -178,6 +178,11 @@ PYTHONPATH=src python scripts/run_pipeline.py --sample
 > In this sandbox the interpreter is `python3` (bare `python` is not on PATH).
 > On your own machine use whichever maps to Python 3.9+ (`python` or `python3`).
 
+**On Windows, skip the typing:** double-click **`start.bat`** in the project
+root. It sets `PYTHONPATH` and runs `scripts\run_pipeline.py --sample` for you
+(falling back to the `py` launcher if `python` is not on PATH), then keeps the
+window open. Pass your own flags from a prompt, e.g. `start.bat --data your.csv`.
+
 This prints a performance report (total return, Sharpe, **max drawdown**, win
 rate, number of trades, ...) and writes artifacts under `runs/<timestamp>/`:
 `metrics.json`, `equity_curve.csv` (or `.png` if matplotlib is installed), and the

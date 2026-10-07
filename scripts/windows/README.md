@@ -10,7 +10,17 @@ pull from the GitHub repo, so your local copy always matches what we work on.
 | `sync.bat`    | Downloads the latest changes with a safe fast-forward pull. Stops if the branch diverged or you have local edits. Run it any time, or schedule it. |
 | `update.bat`  | "Always give me the latest files" button. Force-syncs the folder to exactly match the repo (`fetch` + `reset --hard` + `clean`), so you always end up current even if something drifted locally. Self-heals a non-git folder. |
 
-By default both scripts target:
+## Run the pipeline with one double-click (`start.bat`)
+
+Once the project is on your PC, just **double-click `start.bat` in the project
+root** (`F:\Automation\Trading\start.bat`). It runs the sample pipeline for you,
+no typing required: it `cd`s to the project root, sets `PYTHONPATH=src` for that
+run only, finds Python (`python`, falling back to the `py` launcher), runs
+`scripts\run_pipeline.py --sample`, reports success or failure, and keeps the
+window open. To use your own data from a prompt, pass flags through, e.g.
+`start.bat --data path\to\your.csv`; with no arguments it defaults to `--sample`.
+
+By default both download scripts target:
 
 ```
 Folder : F:\Automation\Trading
