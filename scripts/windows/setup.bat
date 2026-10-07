@@ -126,11 +126,20 @@ if exist "%TARGET_DIR%\.git" (
         echo       existing files ^(including this setup.bat^) are kept.
         echo.
 
-        REM Temp clone location: a sibling dir next to the target so it is on
-        REM the same drive (fast, atomic move of the .git directory).
-        set "TMP_CLONE=%TARGET_DIR%\..\__trading_clone_tmp"
+        REM Build a normalised ABSOLUTE temp path on the SAME drive as the
+        REM target (fast move of the hidden .git dir, no cross-drive copy).
+        REM We resolve the parent of TARGET_DIR with %%~fI so the final path
+        REM contains NO ".." segment - passing a path with ".." to move /
+        REM robocopy inside a parenthesised, delayed-expansion block is
+        REM unreliable and was the root cause of the earlier failure.
+        for %%I in ("%TARGET_DIR%\..") do set "PARENT_DIR=%%~fI"
+        set "TMP_CLONE=!PARENT_DIR!\__trading_clone_tmp"
 
-        REM Clean up any leftover temp clone from a previous interrupted run.
+        REM Defensively remove BOTH the new normalised temp path and the OLD
+        REM un-normalised leftover from a previous failed run (which left a
+        REM partial clone at "<target>\..\__trading_clone_tmp") so the user is
+        REM never stuck with orphaned junk.
+        if exist "%TARGET_DIR%\..\__trading_clone_tmp" rmdir /s /q "%TARGET_DIR%\..\__trading_clone_tmp"
         if exist "!TMP_CLONE!" (
             echo       Removing leftover temp clone at "!TMP_CLONE!" ...
             rmdir /s /q "!TMP_CLONE!"
@@ -149,8 +158,13 @@ if exist "%TARGET_DIR%\.git" (
         )
 
         echo       Moving git metadata into "%TARGET_DIR%" ...
-        move "!TMP_CLONE!\.git" "%TARGET_DIR%\.git" >nul
-        if errorlevel 1 (
+        REM robocopy /MOVE reliably relocates the HIDDEN .git directory, which
+        REM the plain `move` command fails to find ("The system cannot find the
+        REM file specified."). robocopy creates the destination as needed.
+        REM NOTE: robocopy's exit code is a bitmask - 0..7 mean SUCCESS, only
+        REM >=8 is a real failure, so we test `errorlevel 8` (not 1).
+        robocopy "!TMP_CLONE!\.git" "%TARGET_DIR%\.git" /E /MOVE /NFL /NDL /NJH /NJS /NP >nul
+        if errorlevel 8 (
             echo.
             echo ERROR: Could not move the .git folder into %TARGET_DIR%.
             echo        A ".git" folder may already exist there, or the folder
@@ -159,6 +173,9 @@ if exist "%TARGET_DIR%\.git" (
             pause
             exit /b 1
         )
+        REM robocopy returns a non-zero SUCCESS code (e.g. 1); clear ERRORLEVEL
+        REM so the later `if errorlevel 1` checks on git are not tripped.
+        cmd /c exit 0
 
         REM Discard the now-empty temp clone directory.
         if exist "!TMP_CLONE!" rmdir /s /q "!TMP_CLONE!"
