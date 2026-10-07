@@ -13,6 +13,15 @@ env/
 
 # Pipeline artifacts (equity curves, metrics, trained models)
 runs/
+*.pkl
+*.joblib
+model.json
+
+# Generated (large) sample data used by --sample runs; never clobber the tracked one.
+data/generated/
+
+# Keep the small, runnable sample dataset tracked so the pipeline works out of the box.
+!data/sample/XAUUSD_sample.csv
 
 # OS / editor cruft
 .DS_Store

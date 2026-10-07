@@ -84,7 +84,10 @@ class LabelingConfig:
     horizon: int = 24  # max candles to hold before the vertical (time) barrier
     target_atr_mult: float = 2.0  # take-profit distance in ATR multiples
     stop_atr_mult: float = 1.0  # stop-loss distance in ATR multiples
-    atr_window: int = 14  # ATR window used to size the barriers
+    # ATR window used to size the LABEL barriers. MUST equal
+    # features.atr_window (enforced at load; see Config._validate) so the model
+    # learns the same barrier geometry the backtest trades.
+    atr_window: int = 14
 
 
 @dataclass
@@ -112,6 +115,7 @@ class BacktestConfig:
     train_size: int = 2000  # candles per walk-forward train window
     test_size: int = 500  # candles per walk-forward test window
     embargo: int = 24  # purge/embargo candles between train and test
+    prob_threshold: float = 0.5  # min model probability to take a signalled trade
 
 
 @dataclass
@@ -332,10 +336,34 @@ def _build_dataclass(cls, data: Optional[Dict[str, Any]]):
     return cls(**kwargs)
 
 
+def _validate(cfg: Config) -> Config:
+    """Validate cross-section invariants, failing loud on silent footguns.
+
+    ATR window coupling: the triple-barrier LABELS (what the model learns from)
+    are sized with ``labeling.atr_window`` while the stops/targets the backtest
+    actually TRADES are sized with ``features.atr_window``. If these two
+    independent keys ever disagree, the model would be trained on a different
+    barrier distance than the one executed, silently degrading the filter. Rather
+    than let that pass unnoticed we refuse to load such a config and name both
+    keys so the fix is obvious. (See the README "Configuration" section.)
+    """
+    if cfg.features.atr_window != cfg.labeling.atr_window:
+        raise ValueError(
+            "ATR window mismatch: features.atr_window "
+            f"({cfg.features.atr_window}) must equal labeling.atr_window "
+            f"({cfg.labeling.atr_window}). The backtest sizes traded stops/"
+            "targets from features.atr_window while the training labels are "
+            "sized from labeling.atr_window; keeping them equal ensures the "
+            "model learns the same barrier geometry the backtest executes. "
+            "Set both keys to the same value in your config."
+        )
+    return cfg
+
+
 def from_dict(data: Dict[str, Any]) -> Config:
     """Build a :class:`Config` from a plain mapping (e.g. parsed YAML)."""
     data = data or {}
-    return Config(
+    cfg = Config(
         data=_build_dataclass(DataConfig, data.get("data")),
         features=_build_dataclass(FeatureConfig, data.get("features")),
         labeling=_build_dataclass(LabelingConfig, data.get("labeling")),
@@ -344,6 +372,7 @@ def from_dict(data: Dict[str, Any]) -> Config:
         risk=_build_dataclass(RiskConfig, data.get("risk")),
         execution=_build_dataclass(ExecutionConfig, data.get("execution")),
     )
+    return _validate(cfg)
 
 
 def load_config(path: str = "configs/default.yaml") -> Config:

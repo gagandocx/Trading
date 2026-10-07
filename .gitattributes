@@ -1,0 +1,4 @@
+# Keep Windows batch scripts as CRLF so they run correctly on Windows
+# regardless of the user's core.autocrlf setting.
+*.bat text eol=crlf
+*.cmd text eol=crlf
